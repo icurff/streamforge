@@ -1,0 +1,48 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: ${APP_NAME:streamforge}
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
+      file-size-threshold: 2KB
+
+aws:
+  region: ${AWS_REGION:ap-southeast-1}
+  dynamodb:
+    environment: ${ENVIRONMENT:dev}
+    prefix: ${DYNAMODB_PREFIX:streamforge}
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
+azure:
+  storage:
+    account-name: ${AZURE_STORAGE_ACCOUNT_NAME:}
+    container-name: ${AZURE_STORAGE_CONTAINER_NAME:vod-container}
+    connection-string: ${AZURE_STORAGE_CONNECTION_STRING:}
+    public-url: ${AZURE_STORAGE_PUBLIC_URL:}
+
+icurff:
+  app:
+    storage: ${ICURFF_APP_STORAGE:/app/storage}
+
+logging:
+  level:
+    org:
+      springframework:
+        security: ${LOG_LEVEL_SECURITY:INFO}
