@@ -159,7 +159,12 @@ public class VideoService {
 
         EVideoResolution videoResolution = getResolutionEnum(resolution);
         if (videoResolution != null) {
-            video.getResolutions().add(videoResolution);
+            Set<EVideoResolution> resSet = video.getResolutions();
+            if (resSet == null) {
+                resSet = new HashSet<>();
+            }
+            resSet.add(videoResolution);
+            video.setResolutions(resSet);
         }
 
         videoRepository.save(video);

@@ -36,4 +36,15 @@ public class User {
     public String getId() {
         return id;
     }
+
+    public Set<ERole> getRoles() {
+        if (roles != null && roles.isEmpty()) {
+            return null;
+        }
+        return roles;
+    }
+
+    public void setRoles(Set<ERole> roles) {
+        this.roles = (roles != null && !roles.isEmpty()) ? roles : null;
+    }
 }

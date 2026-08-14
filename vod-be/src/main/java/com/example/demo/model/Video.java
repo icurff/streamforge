@@ -5,7 +5,6 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.Set;
 
 @Data
@@ -19,7 +18,7 @@ public class Video {
     private Integer duration = 0;
     private String s3RawKey;
     private String s3OutputPrefix;
-    private Set<EVideoResolution> resolutions = new HashSet<>();
+    private Set<EVideoResolution> resolutions = null;
     private EVideoPrivacy privacy = EVideoPrivacy.PUBLIC;
     private Instant uploadedDate = Instant.now();
     private Instant lastModifiedDate = Instant.now();
@@ -27,5 +26,16 @@ public class Video {
     @DynamoDbPartitionKey
     public String getId() {
         return id;
+    }
+
+    public Set<EVideoResolution> getResolutions() {
+        if (resolutions != null && resolutions.isEmpty()) {
+            return null;
+        }
+        return resolutions;
+    }
+
+    public void setResolutions(Set<EVideoResolution> resolutions) {
+        this.resolutions = (resolutions != null && !resolutions.isEmpty()) ? resolutions : null;
     }
 }
