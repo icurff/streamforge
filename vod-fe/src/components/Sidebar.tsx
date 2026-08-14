@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator";
 const mainNavItems = [
   { icon: Home, label: "Home", href: "/" },
   { icon: LayoutGrid, label: "Feed", href: "/feed" },
-  { icon: Video, label: "Livestream", href: "/livestream" },
   { icon: Bell, label: "Subscriptions", href: "/subscriptions" },
 ];
 

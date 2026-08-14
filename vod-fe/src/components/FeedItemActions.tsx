@@ -7,25 +7,21 @@ import { useToggleLike } from "@/hooks/useToggleLike";
 
 type FeedItemActionsProps = {
   itemId: string;
-  itemType: "video" | "livestream";
+  itemType?: "video";
   commentCount: React.ReactNode;
 };
 
-export const FeedItemActions = ({ itemId, itemType, commentCount }: FeedItemActionsProps) => {
+export const FeedItemActions = ({ itemId, commentCount }: FeedItemActionsProps) => {
   const navigate = useNavigate();
-  const { data: likeInfo } = useGetLikeInfo(itemId, itemType);
+  const { data: likeInfo } = useGetLikeInfo(itemId, "video");
   const toggleLikeMutation = useToggleLike();
 
   const handleLikeClick = () => {
-    toggleLikeMutation.mutate({ contentId: itemId, contentType: itemType });
+    toggleLikeMutation.mutate({ contentId: itemId, contentType: "video" });
   };
 
   const handleCommentClick = () => {
-    if (itemType === "video") {
-      navigate(`/video/${itemId}`);
-    } else {
-      navigate(`/livestream/${itemId}`);
-    }
+    navigate(`/video/${itemId}`);
   };
 
   return (

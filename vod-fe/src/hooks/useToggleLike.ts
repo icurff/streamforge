@@ -3,18 +3,15 @@ import axios from "@/config/CustomAxios";
 
 type ToggleLikeParams = {
   contentId: string;
-  contentType: "video" | "livestream";
+  contentType?: string;
 };
 
 type ToggleLikeResponse = {
   liked: boolean;
 };
 
-async function toggleLike({ contentId, contentType }: ToggleLikeParams): Promise<ToggleLikeResponse> {
-  const endpoint = contentType === "video"
-    ? `/api/videos/${contentId}/like`
-    : `/api/livestream/${contentId}/like`;
-  const res = await axios.post(endpoint);
+async function toggleLike({ contentId }: ToggleLikeParams): Promise<ToggleLikeResponse> {
+  const res = await axios.post(`/api/videos/${contentId}/like`);
   return res.data;
 }
 
@@ -24,9 +21,8 @@ export function useToggleLike() {
   return useMutation({
     mutationFn: toggleLike,
     onSuccess: (_, variables) => {
-      // Invalidate the like info query to refetch the latest data
       queryClient.invalidateQueries({ 
-        queryKey: ["likeInfo", variables.contentId, variables.contentType] 
+        queryKey: ["likeInfo", variables.contentId] 
       });
     },
   });

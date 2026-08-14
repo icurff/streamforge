@@ -2,7 +2,6 @@ import { Header } from "@/components/Header";
 import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Loader2, Play, ThumbsUp, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -70,21 +69,12 @@ const LikedVideosPage = () => {
                       ? item.thumbnail
                       : "/placeholder.svg";
 
-                    const isLivestream = item.type === "livestream";
-                    const handleClick = () => {
-                      if (isLivestream) {
-                        navigate(`/livestream/${item.id}`);
-                      } else {
-                        navigate(`/video/${item.id}`);
-                      }
-                    };
-
-                    return (
-                      <Card
-                        key={item.id}
-                        className="group cursor-pointer transition-all duration-300 hover:shadow-medium"
-                        onClick={handleClick}
-                      >
+                  return (
+                    <Card
+                      key={item.id}
+                      className="group cursor-pointer transition-all duration-300 hover:shadow-medium"
+                      onClick={() => navigate(`/video/${item.id}`)}
+                    >
                       <CardContent className="p-0">
                         {/* Thumbnail */}
                         <div className="relative aspect-video overflow-hidden rounded-t-lg">
@@ -100,24 +90,19 @@ const LikedVideosPage = () => {
                               className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-primary/90 hover:bg-primary text-primary-foreground"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleClick();
+                                navigate(`/video/${item.id}`);
                               }}
                             >
                               <Play className="h-6 w-6" />
                             </Button>
                           </div>
-                            {item.duration && item.duration > 0 && (
-                              <div className="absolute bottom-2 right-2 bg-black/80 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {formatDuration(item.duration)}
-                              </div>
-                            )}
-                            {isLivestream && (
-                              <Badge className="absolute top-2 left-2 bg-red-500 text-white text-xs">
-                                LIVE
-                              </Badge>
-                            )}
-                          </div>
+                          {item.duration && item.duration > 0 && (
+                            <div className="absolute bottom-2 right-2 bg-black/80 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDuration(item.duration)}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Content */}
                         <div className="p-4 space-y-3">
@@ -151,4 +136,3 @@ const LikedVideosPage = () => {
 };
 
 export default LikedVideosPage;
-

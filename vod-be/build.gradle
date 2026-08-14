@@ -32,11 +32,12 @@ dependencies {
     implementation 'org.springframework.data:spring-data-commons'
     implementation 'org.springframework:spring-tx'
 
-    // AWS SDK v2 DynamoDB, STS (for IRSA) & Enhanced Client
+    // AWS SDK v2 DynamoDB, STS (for IRSA), S3 & Enhanced Client
     implementation platform('software.amazon.awssdk:bom:2.30.15')
     implementation 'software.amazon.awssdk:dynamodb'
     implementation 'software.amazon.awssdk:dynamodb-enhanced'
     implementation 'software.amazon.awssdk:sts'
+    implementation 'software.amazon.awssdk:s3'
 
     // Documentation & OpenAPI
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'

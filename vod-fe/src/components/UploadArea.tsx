@@ -5,7 +5,6 @@ import { useCallback, useRef, useState } from "react";
 import axios from "@/config/CustomAxios";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import accessToken from "@/utils/LocalStorage";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthDialog } from "./AuthDialog";
 
@@ -25,21 +24,8 @@ export function UploadArea() {
     }
     try {
       setIsUploading(true);
-      // Prepare chunking (do not alter UI)
-      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-      const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
 
-      // 1) Create upload session on central server
-      const createBody = {
-        totalChunks,
-        fileName: file.name,
-        fileType: file.type || "application/octet-stream",
-        fileSize: file.size,
-      };
-      const sessionRes = await axios.post(`/api/uploads/sessions`, createBody);
-      const { sessionId, destinationUrl } = sessionRes.data as { sessionId: string; destinationUrl: string };
-
-      // Optional: extract duration metadata
+      // 1) Extract duration metadata
       const getDuration = (): Promise<number | null> =>
         new Promise((resolve) => {
           const el = document.createElement("video");
@@ -54,58 +40,64 @@ export function UploadArea() {
         });
       const duration = await getDuration();
 
-      // 2) Upload chunks to destination URL (sub-server)
-      const token = accessToken.getAccessToken();
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        const start = chunkIndex * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        const formData = new FormData();
-        formData.append("file", chunk);
-        formData.append("fileName", file.name);
-        formData.append("fileType", file.type || "application/octet-stream");
-        formData.append("fileSize", String(file.size));
-        if (duration != null) formData.append("fileDuration", String(duration));
-        formData.append("sessionId", sessionId);
-        formData.append("chunkIndex", String(chunkIndex));
-        formData.append("totalChunks", String(totalChunks));
+      // 2) Request Presigned S3 Upload URL from central backend
+      const createBody = {
+        fileName: file.name,
+        fileType: file.type || "video/mp4",
+        fileSize: file.size,
+        duration: duration != null ? duration : undefined,
+      };
+      const sessionRes = await axios.post(`/api/uploads/sessions`, createBody);
+      const { sessionId, videoId, uploadUrl, destinationUrl } = sessionRes.data as {
+        sessionId?: string;
+        videoId?: string;
+        uploadUrl?: string;
+        destinationUrl?: string;
+      };
 
-        const uploadRes = await fetch(destinationUrl, {
-          method: "POST",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          } as Record<string, string>,
-          body: formData,
-        });
-        if (!uploadRes.ok) {
-          try {
-            // eslint-disable-next-line no-console
-            console.log("Upload error:", await uploadRes.json());
-          } catch {}
-          throw new Error(`Chunk ${chunkIndex} upload failed: ${uploadRes.status}`);
-        }
-        // UI remains the same; progress could be used internally if needed
-        // const progressPct = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+      const targetUrl = uploadUrl || destinationUrl;
+      if (!targetUrl) {
+        throw new Error("Không lấy được đường dẫn tải lên (Presigned URL)");
       }
 
-      // 3) Poll session status for processing/transcode completion
-      const poll = async (): Promise<void> => {
+      // 3) Upload directly to S3 via Presigned PUT URL
+      const uploadRes = await fetch(targetUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "video/mp4",
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Tải lên S3 thất bại: ${uploadRes.status} ${uploadRes.statusText}`);
+      }
+
+      // 4) Complete upload on backend
+      const finalVideoId = videoId || sessionId;
+      if (finalVideoId) {
         try {
-          const s = await axios.get(`/api/uploads/sessions/${sessionId}`);
-          const status = (s.data?.status ?? "").toString();
-          if (status && status !== "UPLOADING") {
-            toast({ title: "Xử lý xong", description: `Video ${file.name} đã sẵn sàng` });
-            await queryClient.invalidateQueries({ queryKey: ["recentVideos"] });
-          } else {
-            setTimeout(() => { void poll(); }, 2000);
-          }
-        } catch {
-          setTimeout(() => { void poll(); }, 3000);
-        }
-      };
-      void poll();
+          await axios.post(`/api/uploads/complete`, {
+            videoId: finalVideoId,
+            duration: duration != null ? duration : undefined,
+          });
+        } catch (ignored) {}
+      }
+
+      toast({
+        title: "Tải lên thành công",
+        description: `Video "${file.name}" đã được tải lên thành công!`,
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["recentVideos"] });
+      await queryClient.invalidateQueries({ queryKey: ["publicVideos"] });
+      await queryClient.invalidateQueries({ queryKey: ["allPublicVideos"] });
     } catch (err: any) {
-      toast({ title: "Upload thất bại", description: err?.message ?? "Có lỗi xảy ra", variant: "destructive" });
+      toast({
+        title: "Upload thất bại",
+        description: err?.message ?? "Có lỗi xảy ra khi tải lên video",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
@@ -168,19 +160,19 @@ export function UploadArea() {
           {isUploading ? (
             <>
               <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Uploading your video...</h3>
-              <p className="text-muted-foreground">Please wait while we process your file</p>
+              <h3 className="text-xl font-semibold mb-2">Đang tải video lên S3...</h3>
+              <p className="text-muted-foreground">Vui lòng chờ trong giây lát</p>
             </>
           ) : (
             <>
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
                 <Upload className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Drop files to upload</h3>
+              <h3 className="text-xl font-semibold mb-2">Kéo thả video vào đây</h3>
               
               <Button variant="upload" className="gap-2" onClick={handleSelectClick}>
                 <FileVideo className="h-4 w-4" />
-                Select files
+                Chọn video từ máy
               </Button>
               
               <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={onFileChange} />

@@ -12,9 +12,6 @@ export type LikedVideo = {
   username: string;
   likedAt?: string;
   duration?: number;
-  type?: "video" | "livestream";
-  serverLocation?: string;
-  dvrPath?: string;
   server_locations?: string[];
 };
 
@@ -38,4 +35,3 @@ export function useGetLikedVideos(limit = 50): UseQueryResult<LikedVideo[], Erro
     queryFn: () => fetchLikedVideos(limit),
   });
 }
-

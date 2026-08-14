@@ -6,22 +6,19 @@ type LikeInfo = {
   isLiked: boolean;
 };
 
-async function fetchLikeInfo(contentId: string, contentType: "video" | "livestream"): Promise<LikeInfo> {
-  const endpoint = contentType === "video"
-    ? `/api/videos/${contentId}/like-info`
-    : `/api/livestream/${contentId}/like-info`;
-  const res = await axios.get(endpoint);
+async function fetchLikeInfo(contentId: string): Promise<LikeInfo> {
+  const res = await axios.get(`/api/videos/${contentId}/like-info`);
   return res.data;
 }
 
 export function useGetLikeInfo(
   contentId: string, 
-  contentType: "video" | "livestream",
+  contentType: string = "video",
   enabled = true
 ): UseQueryResult<LikeInfo, Error> {
   return useQuery({
     queryKey: ["likeInfo", contentId, contentType],
-    queryFn: () => fetchLikeInfo(contentId, contentType),
+    queryFn: () => fetchLikeInfo(contentId),
     enabled: enabled && !!contentId,
   });
 }
