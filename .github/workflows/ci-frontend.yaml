@@ -39,7 +39,7 @@ jobs:
       - name: Install Dependencies & Build
         working-directory: vod-fe
         run: |
-          npm ci
+          npm ci || npm install
           npm run build
 
       - name: Configure AWS Credentials
@@ -72,9 +72,10 @@ jobs:
 
       - name: Trigger GitOps Update in vod-cfg
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging')
+        continue-on-error: true
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.GITOPS_PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITOPS_PAT_TOKEN }}
           repository: icurff/vod-cfg
           event-type: update-image
           client-payload: '{"service": "frontend", "tag": "${{ github.sha }}", "environment": "${{ github.ref_name }}"}'
