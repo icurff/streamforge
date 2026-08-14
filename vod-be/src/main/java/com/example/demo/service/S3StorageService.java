@@ -17,10 +17,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import lombok.extern.slf4j.Slf4j;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class S3StorageService {
 
@@ -40,30 +42,34 @@ public class S3StorageService {
 
     @PostConstruct
     public void init() {
-        BlobServiceClient blobServiceClient;
+        try {
+            BlobServiceClient blobServiceClient;
 
-        if (connectionString != null && !connectionString.isBlank()) {
-            blobServiceClient = new BlobServiceClientBuilder()
-                    .connectionString(connectionString)
-                    .buildClient();
-        } else if (accountName != null && !accountName.isBlank()) {
-            String endpoint = String.format("https://%s.blob.core.windows.net", accountName);
-            TokenCredential credential = new DefaultAzureCredentialBuilder().build();
-            blobServiceClient = new BlobServiceClientBuilder()
-                    .endpoint(endpoint)
-                    .credential(credential)
-                    .buildClient();
-        } else {
-            // Fallback / mock endpoint for local Azurite emulator
-            String endpoint = "http://127.0.0.1:10000/devstoreaccount1";
-            blobServiceClient = new BlobServiceClientBuilder()
-                    .endpoint(endpoint)
-                    .buildClient();
-        }
+            if (connectionString != null && !connectionString.isBlank()) {
+                blobServiceClient = new BlobServiceClientBuilder()
+                        .connectionString(connectionString)
+                        .buildClient();
+            } else if (accountName != null && !accountName.isBlank()) {
+                String endpoint = String.format("https://%s.blob.core.windows.net", accountName);
+                TokenCredential credential = new DefaultAzureCredentialBuilder().build();
+                blobServiceClient = new BlobServiceClientBuilder()
+                        .endpoint(endpoint)
+                        .credential(credential)
+                        .buildClient();
+            } else {
+                // Fallback / mock endpoint for local Azurite emulator
+                String endpoint = "http://127.0.0.1:10000/devstoreaccount1";
+                blobServiceClient = new BlobServiceClientBuilder()
+                        .endpoint(endpoint)
+                        .buildClient();
+            }
 
-        this.containerClient = blobServiceClient.getBlobContainerClient(containerName);
-        if (!containerClient.exists()) {
-            containerClient.create();
+            this.containerClient = blobServiceClient.getBlobContainerClient(containerName);
+            if (!containerClient.exists()) {
+                containerClient.create();
+            }
+        } catch (Exception e) {
+            log.warn("Storage client init warning (container '{}'): {}", containerName, e.getMessage());
         }
     }
 
