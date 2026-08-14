@@ -8,7 +8,6 @@ import {
   Play,
   Clock,
   Loader2,
-  Users,
   Video,
   MoreVertical,
   Settings,
@@ -28,9 +27,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "@/config/CustomAxios";
 import { useToast } from "@/hooks/use-toast";
-import { useSubscribe } from "@/hooks/Subscription/useSubscribe";
-import { useUnsubscribe } from "@/hooks/Subscription/useUnsubscribe";
-import { useGetSubscriptionStats } from "@/hooks/Subscription/useGetSubscriptionStats";
 
 const UserChannelPage = () => {
   const { atUsername } = useParams();
@@ -45,7 +41,6 @@ const UserChannelPage = () => {
 
   const { data: videos, isLoading: videosLoading } =
     useGetPublicVideosByUsername(username || "", 50);
-  const { data: subscriptionStats } = useGetSubscriptionStats(username);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -105,34 +100,6 @@ const UserChannelPage = () => {
     },
   });
 
-  const subscribeMutation = useSubscribe();
-  const unsubscribeMutation = useUnsubscribe();
-
-  const handleSubscribe = useCallback(async () => {
-    if (!username) return;
-    try {
-      if (subscriptionStats?.isSubscribed) {
-        await unsubscribeMutation.mutateAsync(username);
-        toast({
-          title: "Đã hủy đăng ký",
-          description: `Bạn đã hủy đăng ký kênh ${username}`,
-        });
-      } else {
-        await subscribeMutation.mutateAsync(username);
-        toast({
-          title: "Đã đăng ký",
-          description: `Bạn đã đăng ký kênh ${username}`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Lỗi",
-        description: error.message || "Có lỗi xảy ra",
-        variant: "destructive",
-      });
-    }
-  }, [username, subscriptionStats?.isSubscribed, subscribeMutation, unsubscribeMutation, toast]);
-
   const handleDelete = useCallback(
     async (item: any) => {
       const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa "${item.title}"?`);
@@ -171,15 +138,6 @@ const UserChannelPage = () => {
               <p className="text-muted-foreground">@{username}</p>
               <div className="flex items-center gap-4 mt-2">
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>
-                    {subscriptionStats?.subscriberCount !== undefined
-                      ? subscriptionStats.subscriberCount.toLocaleString("en-US")
-                      : "0"}{" "}
-                    người đăng ký
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Video className="h-4 w-4" />
                   <span>
                     {Array.isArray(videos) ? videos.length : 0} videos
@@ -187,29 +145,6 @@ const UserChannelPage = () => {
                 </div>
               </div>
             </div>
-            {!isOwner && (
-              <Button
-                className="ml-auto rounded-full"
-                onClick={handleSubscribe}
-                disabled={
-                  subscribeMutation.isPending || unsubscribeMutation.isPending
-                }
-                variant={
-                  subscriptionStats?.isSubscribed ? "outline" : "default"
-                }
-              >
-                {subscribeMutation.isPending || unsubscribeMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang xử lý...
-                  </>
-                ) : subscriptionStats?.isSubscribed ? (
-                  "Đã đăng ký"
-                ) : (
-                  "Đăng ký"
-                )}
-              </Button>
-            )}
           </div>
         </div>
 

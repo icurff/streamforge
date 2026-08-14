@@ -1,14 +1,11 @@
-import { Home, Upload, Bell, LayoutGrid, History, ThumbsUp, Video as VideoIcon, ChevronRight, User } from "lucide-react";
+import { Home, History, ThumbsUp, Video as VideoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Video } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Separator } from "@/components/ui/separator";
 
 const mainNavItems = [
   { icon: Home, label: "Home", href: "/" },
-  { icon: LayoutGrid, label: "Feed", href: "/feed" },
-  { icon: Bell, label: "Subscriptions", href: "/subscriptions" },
 ];
 
 const youNavItems = [

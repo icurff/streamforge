@@ -7,8 +7,6 @@ import AdminServerPage from "@/routes/AdminServerPage";
 import PlayVideoPage from "@/routes/PlayVideoPage";
 import ManageVideoPage from "@/routes/ManageVideoPage";
 import SettingsPage from "@/routes/SettingsPage";
-import SubscriptionsPage from "@/routes/SubscriptionsPage";
-import FeedPage from "@/routes/FeedPage";
 import HistoryPage from "@/routes/HistoryPage";
 import LikedVideosPage from "@/routes/LikedVideosPage";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
@@ -17,14 +15,6 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: <HomePage />,
-  },
-  {
-    path: "/feed",
-    element: <FeedPage />,
-  },
-  {
-    path: "/subscriptions",
-    element: <SubscriptionsPage />,
   },
   {
     path: "/history",
