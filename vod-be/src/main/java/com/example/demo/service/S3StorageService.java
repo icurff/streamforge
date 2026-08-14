@@ -57,11 +57,8 @@ public class S3StorageService {
                         .credential(credential)
                         .buildClient();
             } else {
-                // Fallback / mock endpoint for local Azurite emulator
-                String endpoint = "http://127.0.0.1:10000/devstoreaccount1";
-                blobServiceClient = new BlobServiceClientBuilder()
-                        .endpoint(endpoint)
-                        .buildClient();
+                log.info("No Azure Blob storage credentials configured, skipping Azure Blob client init.");
+                return;
             }
 
             this.containerClient = blobServiceClient.getBlobContainerClient(containerName);
