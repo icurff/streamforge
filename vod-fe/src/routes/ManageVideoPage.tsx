@@ -52,19 +52,15 @@ const ManageVideoPage = () => {
     if (!video || !videoRef.current) return;
 
     const videoElement = videoRef.current;
-    const serverLocation = video.server_locations?.[0];
-    
-    if (!serverLocation) {
-      console.error("No server location available for video:", video.id);
-      return;
+    const cdnBase = (import.meta.env.VITE_MEDIA_CDN_URL || "https://media.icurff.site").replace(/\/$/, "");
+    let m3u8Url = `${cdnBase}/outputs/${video.username}/${video.id}/master.m3u8`;
+    if (video.s3OutputPrefix) {
+      const prefix = video.s3OutputPrefix.startsWith("/") ? video.s3OutputPrefix.slice(1) : video.s3OutputPrefix;
+      m3u8Url = `${cdnBase}/${prefix}master.m3u8`;
     }
-
-    let baseUrl = serverLocation.trim();
-    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-      baseUrl = `http://${baseUrl}`;
+    if (video.streamUrl) {
+      m3u8Url = video.streamUrl;
     }
-    baseUrl = baseUrl.replace(/\/$/, "");
-    const m3u8Url = `${baseUrl}/videos/${video.username}/${video.id}/master.m3u8`;
 
     if (Hls.isSupported()) {
       const hls = new Hls({

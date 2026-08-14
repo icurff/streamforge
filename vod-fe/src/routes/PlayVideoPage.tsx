@@ -1,44 +1,33 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useGetVideo } from "@/hooks/Video/useGetVideo";
-import { useGetLikeInfo } from "@/hooks/useGetLikeInfo";
-import { useToggleLike } from "@/hooks/useToggleLike";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/UserAvatar";
-import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Loader2, ThumbsUp, ThumbsDown, Share2, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Loader2, Share2, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import YouTubeVideoPlayer from "@/components/YouTubeVideoPlayer";
-import { VideoCommentsSection } from "@/components/VideoComments/VideoCommentsSection";
 
 const PlayVideoPage = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
   const { data: video, isLoading, error } = useGetVideo(videoId || "");
-  const { data: likeInfo } = useGetLikeInfo(videoId || "", "video");
-  const toggleLikeMutation = useToggleLike();
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [isDisliked, setIsDisliked] = useState(false);
 
-  const handleLikeClick = () => {
-    if (!videoId) return;
-    toggleLikeMutation.mutate({ contentId: videoId, contentType: "video" });
-    if (isDisliked) setIsDisliked(false);
-  };
-
-  // Construct video source URL
+  // Construct video source URL (HLS master playlist)
   const getVideoUrl = () => {
     if (!video) return "";
-    const serverLocation = video.server_locations?.[0];
-    if (!serverLocation) return "";
+    
+    if (video.streamUrl) return video.streamUrl;
+    if (video.hlsUrl) return video.hlsUrl;
 
-    let baseUrl = serverLocation.trim();
-    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-      baseUrl = `http://${baseUrl}`;
+    const cdnBase = (import.meta.env.VITE_MEDIA_CDN_URL || "https://media.icurff.site").replace(/\/$/, "");
+    if (video.s3OutputPrefix) {
+      const prefix = video.s3OutputPrefix.startsWith("/") ? video.s3OutputPrefix.slice(1) : video.s3OutputPrefix;
+      return `${cdnBase}/${prefix}master.m3u8`;
     }
-    baseUrl = baseUrl.replace(/\/$/, "");
-    return `${baseUrl}/videos/${video.username}/${video.id}/master.m3u8`;
+
+    return `${cdnBase}/outputs/${video.username}/${video.id}/master.m3u8`;
   };
 
   const getThumbnailUrl = () => {
@@ -71,7 +60,6 @@ const PlayVideoPage = () => {
       </div>
     );
   }
-
 
   return (
     <div className="min-h-screen bg-background">
@@ -119,38 +107,15 @@ const PlayVideoPage = () => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-muted rounded-full">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`rounded-l-full hover:bg-muted-foreground/10 ${
-                  likeInfo?.isLiked ? "text-primary" : ""
-                }`}
-                onClick={handleLikeClick}
-                disabled={toggleLikeMutation.isPending}
-              >
-                <ThumbsUp className={`h-5 w-5 mr-2 ${likeInfo?.isLiked ? "fill-current" : ""}`} />
-                <span className="font-medium">{likeInfo?.likeCount ?? 0}</span>
-              </Button>
-              <Separator orientation="vertical" className="h-6" />
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`rounded-r-full hover:bg-muted-foreground/10 ${
-                  isDisliked ? "text-primary" : ""
-                }`}
-                onClick={() => {
-                  setIsDisliked(!isDisliked);
-                }}
-              >
-                <ThumbsDown className="h-5 w-5" />
-              </Button>
-            </div>
-
             <Button
               variant="ghost"
               size="sm"
               className="rounded-full bg-muted hover:bg-muted-foreground/10"
+              onClick={() => {
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(window.location.href);
+                }
+              }}
             >
               <Share2 className="h-5 w-5 mr-2" />
               Share
@@ -198,15 +163,9 @@ const PlayVideoPage = () => {
             </Button>
           )}
         </div>
-
-        {/* Comments Section */}
-        <div>
-          <VideoCommentsSection videoId={video.id} />
-        </div>
       </div>
     </div>
   );
 };
 
 export default PlayVideoPage;
-

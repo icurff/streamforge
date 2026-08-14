@@ -8,11 +8,16 @@ export type Video = {
   title: string;
   description: string;
   thumbnail: string;
-  server_locations: string[];
-  resolutions: string[];
+  s3RawKey?: string;
+  s3OutputPrefix?: string;
+  streamUrl?: string;
+  hlsUrl?: string;
+  resolutions?: string[];
   uploadedDate: string;
   lastModifiedDate?: string;
   privacy: VideoPrivacy;
+  duration?: number;
+  server_locations?: string[];
 };
 
 async function fetchVideo(videoId: string): Promise<Video> {
@@ -27,6 +32,3 @@ export function useGetVideo(videoId: string): UseQueryResult<Video, Error> {
     enabled: !!videoId,
   });
 }
-
-
-
