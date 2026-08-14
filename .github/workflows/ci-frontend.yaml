@@ -1,0 +1,80 @@
+name: CI - Frontend App
+
+on:
+  push:
+    branches: [main, develop, staging]
+    paths:
+      - 'vod-fe/**'
+      - '.github/workflows/ci-frontend.yaml'
+  pull_request:
+    branches: [main, develop, staging]
+    paths:
+      - 'vod-fe/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  AWS_ACCOUNT_ID: "393698973321"
+  ECR_REPOSITORY: streamforge-frontend
+
+jobs:
+  build-and-push:
+    name: Build & Push Frontend Container
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: vod-fe/package-lock.json
+
+      - name: Install Dependencies & Build
+        working-directory: vod-fe
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure AWS Credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: vod-fe
+          file: vod-fe/Dockerfile
+          push: true
+          tags: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger GitOps Update in vod-cfg
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging')
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITOPS_PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          repository: icurff/vod-cfg
+          event-type: update-image
+          client-payload: '{"service": "frontend", "tag": "${{ github.sha }}", "environment": "${{ github.ref_name }}"}'
