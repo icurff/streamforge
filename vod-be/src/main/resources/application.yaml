@@ -29,6 +29,15 @@ icurff:
   app:
     storage: ${ICURFF_APP_STORAGE:/app/storage}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     org:
