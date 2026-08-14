@@ -70,7 +70,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trigger GitOps Update in vod-cfg
+      - name: Checkout vod-cfg repository for GitOps update
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging')
+        uses: actions/checkout@v4
+        with:
+          repository: icurff/vod-cfg
+          token: ${{ secrets.GITOPS_PAT_TOKEN }}
+          ref: ${{ github.ref_name }}
+          path: vod-cfg
+        continue-on-error: true
+
+      - name: Update image tag in vod-cfg
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging')
+        working-directory: vod-cfg
+        continue-on-error: true
+        run: |
+          SERVICE="frontend"
+          TAG="${{ github.sha }}"
+          ENV="${{ github.ref_name }}"
+          
+          echo "Updating image tag for $SERVICE to $TAG (branch: $ENV)..."
+          
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          
+          # Update values.yaml
+          if [ -f helm/streamforge/values.yaml ]; then
+            yq eval ".services.\"${SERVICE}\".image.tag = \"${TAG}\"" -i helm/streamforge/values.yaml
+          fi
+          
+          if [ "$ENV" = "dev" ] || [ "$ENV" = "develop" ]; then
+            if [ -f helm/streamforge/values-dev.yaml ]; then
+              yq eval ".services.\"${SERVICE}\".image.tag = \"${TAG}\"" -i helm/streamforge/values-dev.yaml
+            fi
+          elif [ "$ENV" = "staging" ]; then
+            if [ -f helm/streamforge/values-staging.yaml ]; then
+              yq eval ".services.\"${SERVICE}\".image.tag = \"${TAG}\"" -i helm/streamforge/values-staging.yaml
+            fi
+          elif [ "$ENV" = "main" ] || [ "$ENV" = "prod" ]; then
+            if [ -f helm/streamforge/values-prod.yaml ]; then
+              yq eval ".services.\"${SERVICE}\".image.tag = \"${TAG}\"" -i helm/streamforge/values-prod.yaml
+            fi
+          fi
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/streamforge/
+          git commit -m "chore(cd): update $SERVICE image tag to $TAG on branch $ENV [skip ci]" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}
+
+      - name: Trigger GitOps Update via Repository Dispatch (Fallback)
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging')
         continue-on-error: true
         uses: peter-evans/repository-dispatch@v3
