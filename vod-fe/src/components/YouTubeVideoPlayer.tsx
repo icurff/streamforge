@@ -190,8 +190,12 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
           backBufferLength: 90,
           startLevel: -1,
           capLevelToPlayerSize: false,
-          maxBufferLength: 20,
-          maxMaxBufferLength: 30,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          maxBufferHole: 0.5,
+          highBufferWatchdogPeriod: 2,
+          nudgeOffset: 0.1,
+          nudgeMaxRetry: 10,
         });
 
         hlsRef.current = hls;
@@ -267,6 +271,8 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
+    const handlePlaying = () => setIsLoading(false);
+    const handleSeeked = () => setIsLoading(false);
     const handleTimeUpdate = () => setCurrentTime(video.currentTime);
     const handleDurationChange = () => setDuration(video.duration);
     const handleVolumeChange = () => {
@@ -277,7 +283,9 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
     const handleCanPlay = () => setIsLoading(false);
 
     video.addEventListener('play', handlePlay);
+    video.addEventListener('playing', handlePlaying);
     video.addEventListener('pause', handlePause);
+    video.addEventListener('seeked', handleSeeked);
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('durationchange', handleDurationChange);
     video.addEventListener('volumechange', handleVolumeChange);
@@ -286,7 +294,9 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
 
     return () => {
       video.removeEventListener('play', handlePlay);
+      video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('pause', handlePause);
+      video.removeEventListener('seeked', handleSeeked);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('durationchange', handleDurationChange);
       video.removeEventListener('volumechange', handleVolumeChange);
@@ -340,7 +350,14 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      videoRef.current.play();
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          if (error.name !== 'AbortError') {
+            console.error('Play error:', error);
+          }
+        });
+      }
     }
     // Close settings menu when playing/pausing
     if (showSettingsMenu) {

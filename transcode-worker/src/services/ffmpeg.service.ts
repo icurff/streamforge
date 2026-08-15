@@ -92,9 +92,12 @@ export class FFmpegService {
           '-crf 23',
           '-c:a aac',
           '-b:a 128k',
+          '-avoid_negative_ts make_zero',
           '-f hls',
           '-hls_time 6', // 6-second segments
           '-hls_playlist_type vod',
+          '-hls_flags independent_segments',
+          '-hls_list_size 0',
           `-hls_segment_filename ${segmentPattern}`,
         ])
         .output(playlistPath)
