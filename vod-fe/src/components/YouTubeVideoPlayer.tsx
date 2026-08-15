@@ -189,13 +189,15 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
           lowLatencyMode: false,
           backBufferLength: 90,
           startLevel: -1,
-          capLevelToPlayerSize: false,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          startFragPrefetch: true, // Tải trước segment đầu tiên ngay cùng lúc tải playlist
+          progressive: true,       // Truyền dữ liệu vào bộ giải mã ngay khi từng byte về, không chờ tải xong cả file
+          maxBufferLength: 15,
+          maxMaxBufferLength: 30,
           maxBufferHole: 0.5,
-          highBufferWatchdogPeriod: 2,
+          highBufferWatchdogPeriod: 1,
           nudgeOffset: 0.1,
           nudgeMaxRetry: 10,
+          maxFragLookUpTolerance: 0.25,
         });
 
         hlsRef.current = hls;
@@ -215,6 +217,10 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
           setAvailableLevels(sortedLevels);
           setCurrentLevel(hls.currentLevel);
           onLevelsChange?.(sortedLevels);
+        });
+
+        hls.on(Hls.Events.FRAG_BUFFERED, () => {
+          setIsLoading(false);
         });
 
         hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
@@ -491,6 +497,7 @@ const YouTubeVideoPlayer: React.FC<YouTubeVideoPlayerProps> = ({
         ref={videoRef}
         className="w-full h-full"
         poster={poster}
+        preload="auto"
         playsInline
         onClick={togglePlayPause}
       />
