@@ -88,15 +88,22 @@ export class FFmpegService {
         .videoFilter(`scale=-2:${height}`)
         .videoCodec('libx264')
         .outputOptions([
-          '-preset fast', // Fast preset for quick demo transcoding
+          '-preset fast',
           '-crf 23',
           '-c:a aac',
           '-b:a 128k',
+          '-ar 48000',
+          '-af aresample=async=1:first_pts=0', // Khử triệt để lệch audio 0.023s (AAC priming gap)
+          '-g 48',
+          '-keyint_min 48',
+          '-sc_threshold 0',
+          '-muxdelay 0',
+          '-muxpreload 0',
           '-avoid_negative_ts make_zero',
           '-f hls',
-          '-hls_time 6', // 6-second segments
+          '-hls_time 3', // 3-second segments for instant playback
           '-hls_playlist_type vod',
-          '-hls_flags independent_segments',
+          '-hls_flags independent_segments+split_by_time',
           '-hls_list_size 0',
           `-hls_segment_filename ${segmentPattern}`,
         ])
