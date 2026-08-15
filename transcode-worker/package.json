@@ -1,19 +1,20 @@
 {
   "name": "streamforge-transcode-worker",
   "version": "1.0.0",
-  "description": "Cloud-native Event-Driven FFmpeg Transcode Worker for StreamForge",
+  "description": "Cloud-native Event-Driven FFmpeg Transcode Worker for StreamForge (AWS SQS, S3, DynamoDB)",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "@azure/identity": "^4.5.0",
-    "@azure/service-bus": "^7.9.5",
-    "@azure/storage-blob": "^12.26.0",
     "@aws-sdk/client-dynamodb": "^3.750.0",
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@aws-sdk/client-sqs": "^3.750.0",
     "@aws-sdk/lib-dynamodb": "^3.750.0",
+    "@aws-sdk/lib-storage": "^3.750.0",
     "dotenv": "^16.4.7",
     "fluent-ffmpeg": "^2.1.3"
   },

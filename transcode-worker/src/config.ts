@@ -2,17 +2,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export interface Config {
-  serviceBus: {
-    namespace?: string;
-    connectionString?: string;
-    queueName: string;
-  };
-  storage: {
-    accountName?: string;
-    connectionString?: string;
-    containerName: string;
-    publicBaseUrl?: string;
-    mediaCdnUrl?: string;
+  aws: {
+    region: string;
+    sqsQueueUrl: string;
+    s3BucketName: string;
+    s3UploadPrefix: string;
+    s3HlsPrefix: string;
+    mediaCdnUrl: string;
   };
   database: {
     videosTable: string;
@@ -22,17 +18,13 @@ export interface Config {
 }
 
 export const config: Config = {
-  serviceBus: {
-    namespace: process.env.AZURE_SERVICEBUS_NAMESPACE || '',
-    connectionString: process.env.AZURE_SERVICEBUS_CONNECTION_STRING || '',
-    queueName: process.env.AZURE_SERVICEBUS_QUEUE || 'transcode-queue',
-  },
-  storage: {
-    accountName: process.env.AZURE_STORAGE_ACCOUNT_NAME || '',
-    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING || '',
-    containerName: process.env.AZURE_STORAGE_CONTAINER_NAME || 'vod-container',
-    publicBaseUrl: process.env.AZURE_STORAGE_PUBLIC_URL || '',
-    mediaCdnUrl: process.env.AZURE_MEDIA_CDN_URL || 'https://media.icurff.site',
+  aws: {
+    region: process.env.AWS_REGION || 'ap-southeast-1',
+    sqsQueueUrl: process.env.AWS_SQS_QUEUE_URL || 'https://sqs.ap-southeast-1.amazonaws.com/393698973321/streamforge-transcode-queue-dev',
+    s3BucketName: process.env.AWS_S3_BUCKET_NAME || 'streamforge-media-dev-393698973321',
+    s3UploadPrefix: process.env.AWS_S3_UPLOAD_PREFIX || 'uploads/',
+    s3HlsPrefix: process.env.AWS_S3_HLS_PREFIX || 'outputs/',
+    mediaCdnUrl: process.env.AWS_MEDIA_CDN_URL || 'https://media.icurff.site',
   },
   database: {
     videosTable: process.env.DYNAMODB_VIDEOS_TABLE || 'streamforge-videos-dev',

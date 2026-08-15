@@ -6,7 +6,7 @@ import { FFmpegService } from './ffmpeg.service.js';
 import { config } from '../config.js';
 
 export interface TranscodeTask {
-  blobPath: string;
+  s3Key: string;
   username: string;
   videoId: string;
   fileName: string;
@@ -38,38 +38,47 @@ export class TranscodeProcessor {
       }
     }
 
-    // Case 1: Event Grid Storage Event (Array or Object)
-    if (Array.isArray(payload) && payload.length > 0) {
-      payload = payload[0];
+    // Handle SNS envelope if present
+    if (payload?.Type === 'Notification' && payload?.Message) {
+      try {
+        payload = JSON.parse(payload.Message);
+      } catch (e) {
+        console.error('[Processor] Failed to parse SNS Message JSON:', payload.Message);
+        return null;
+      }
     }
 
-    let blobPath = '';
-    if (payload?.subject) {
-      // Format: /blobServices/default/containers/vod-container/blobs/raw/username/videoId/filename.mp4
-      const match = payload.subject.match(/blobs\/(.+)$/);
-      if (match) {
-        blobPath = match[1];
-      }
-    } else if (payload?.data?.url) {
-      const url = new URL(payload.data.url);
-      // Remove container name prefix from pathname: /vod-container/raw/user/id/file
-      const parts = url.pathname.split('/').filter(Boolean);
-      if (parts.length > 1) {
-        blobPath = parts.slice(1).join('/');
-      }
-    } else if (payload?.blobPath) {
-      blobPath = payload.blobPath;
-    }
-
-    if (!blobPath || !blobPath.startsWith('raw/')) {
-      console.warn(`[Processor] Ignored message with non-raw blob path: "${blobPath}"`);
+    // Ignore S3 TestEvent
+    if (payload?.Event === 's3:TestEvent' || payload?.Service === 'Amazon S3') {
+      console.log('[Processor] Received and skipped S3 test notification event.');
       return null;
     }
 
-    // Pattern: raw/{username}/{videoId}/{fileName}
-    const segments = blobPath.split('/');
+    let s3Key = '';
+
+    // S3 Event notification format: Records[0].s3.object.key
+    if (Array.isArray(payload?.Records) && payload.Records.length > 0) {
+      const s3Record = payload.Records[0]?.s3;
+      if (s3Record?.object?.key) {
+        s3Key = decodeURIComponent(s3Record.object.key.replace(/\+/g, ' '));
+      }
+    } else if (payload?.s3Key) {
+      s3Key = payload.s3Key;
+    } else if (payload?.blobPath) {
+      s3Key = payload.blobPath;
+    }
+
+    if (!s3Key) {
+      console.warn('[Processor] Ignored message without valid S3 object key:', JSON.stringify(payload));
+      return null;
+    }
+
+    // Expected pattern: uploads/{username}/{videoId}/{fileName} or raw/{username}/{videoId}/{fileName}
+    const cleanKey = s3Key.replace(/^\//, '');
+    const segments = cleanKey.split('/');
+
     if (segments.length < 4) {
-      console.error(`[Processor] Unexpected blob path structure: "${blobPath}"`);
+      console.warn(`[Processor] S3 key "${cleanKey}" does not match prefix/username/videoId/fileName pattern. Skipping.`);
       return null;
     }
 
@@ -78,7 +87,7 @@ export class TranscodeProcessor {
     const fileName = segments.slice(3).join('/');
 
     return {
-      blobPath,
+      s3Key: cleanKey,
       username,
       videoId,
       fileName,
@@ -89,6 +98,7 @@ export class TranscodeProcessor {
     console.log(`\n========================================`);
     console.log(`[Processor] Starting transcode task for VideoId: ${task.videoId}`);
     console.log(`[Processor] User: ${task.username}, File: ${task.fileName}`);
+    console.log(`[Processor] S3 Source Key: "${task.s3Key}"`);
     console.log(`========================================`);
 
     const workDir = path.join(config.scratchDir, task.videoId);
@@ -96,19 +106,19 @@ export class TranscodeProcessor {
     const outputLocalDir = path.join(workDir, 'outputs');
 
     try {
-      // 1. Download raw file from Azure Blob Storage
-      await this.storageService.downloadBlobToFile(task.blobPath, rawLocalPath);
+      // 1. Download raw file from AWS S3
+      await this.storageService.downloadFileToFile(task.s3Key, rawLocalPath);
 
-      // 2. FFmpeg transcode into multi-bitrate HLS + master playlist
-      const result = await this.ffmpegService.transcodeToHLS(rawLocalPath, outputLocalDir, 'qmh');
+      // 2. FFmpeg transcode into multi-bitrate HLS + master playlist (master.m3u8)
+      const result = await this.ffmpegService.transcodeToHLS(rawLocalPath, outputLocalDir, 'stream');
 
-      // 3. Upload transcoded HLS stream files to Azure Blob Storage
-      // Target blob prefix: outputs/{username}/{videoId}/
+      // 3. Upload transcoded HLS stream files to AWS S3
+      // Target prefix: outputs/{username}/{videoId}/
       const remoteOutputPrefix = `outputs/${task.username}/${task.videoId}`;
-      console.log(`[Processor] Uploading HLS directory to: "${remoteOutputPrefix}"`);
+      console.log(`[Processor] Uploading HLS directory to S3: "${remoteOutputPrefix}"`);
       await this.storageService.uploadDirectory(outputLocalDir, remoteOutputPrefix);
 
-      // 4. Update MongoDB document with resolutions and duration
+      // 4. Update DynamoDB document with resolutions and duration
       await this.databaseService.updateVideoTranscodeComplete(
         task.videoId,
         result.resolutions,

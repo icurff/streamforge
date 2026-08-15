@@ -1,80 +1,83 @@
-import { BlobServiceClient, ContainerClient, BlockBlobClient } from '@azure/storage-blob';
-import { DefaultAzureCredential } from '@azure/identity';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { config } from '../config.js';
 
 export class StorageService {
-  private blobServiceClient: BlobServiceClient;
-  private containerClient: ContainerClient;
+  private s3Client: S3Client;
+  private bucketName: string;
 
   constructor() {
-    if (config.storage.connectionString) {
-      this.blobServiceClient = BlobServiceClient.fromConnectionString(config.storage.connectionString);
-    } else if (config.storage.accountName) {
-      const endpoint = `https://${config.storage.accountName}.blob.core.windows.net`;
-      const credential = new DefaultAzureCredential();
-      this.blobServiceClient = new BlobServiceClient(endpoint, credential);
-    } else {
-      // Local Azurite emulator fallback
-      const endpoint = 'http://127.0.0.1:10000/devstoreaccount1';
-      this.blobServiceClient = new BlobServiceClient(endpoint);
-    }
-
-    this.containerClient = this.blobServiceClient.getContainerClient(config.storage.containerName);
+    this.bucketName = config.aws.s3BucketName;
+    this.s3Client = new S3Client({
+      region: config.aws.region,
+    });
+    console.log(`[Storage] Initialized AWS S3 Service for bucket "${this.bucketName}" in region "${config.aws.region}"`);
   }
 
-  async ensureContainer(): Promise<void> {
-    await this.containerClient.createIfNotExists();
-  }
-
-  async downloadBlobToFile(blobPath: string, destinationFilePath: string): Promise<void> {
+  async downloadFileToFile(s3Key: string, destinationFilePath: string): Promise<void> {
     const parentDir = path.dirname(destinationFilePath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
-    const blobClient = this.containerClient.getBlobClient(blobPath);
-    console.log(`[Storage] Downloading blob: "${blobPath}" -> "${destinationFilePath}"`);
-    await blobClient.downloadToFile(destinationFilePath);
+    console.log(`[Storage] Downloading S3 object: "s3://${this.bucketName}/${s3Key}" -> "${destinationFilePath}"`);
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: s3Key,
+    });
+
+    const response = await this.s3Client.send(command);
+
+    if (!response.Body) {
+      throw new Error(`Empty body received from S3 for key "${s3Key}"`);
+    }
+
+    const fileStream = fs.createWriteStream(destinationFilePath);
+    await pipeline(response.Body as Readable, fileStream);
+    console.log(`[Storage] Downloaded "${s3Key}" successfully (${fs.statSync(destinationFilePath).size} bytes)`);
   }
 
-  async uploadFile(localFilePath: string, destinationBlobPath: string, contentType?: string): Promise<string> {
-    const blockBlobClient = this.containerClient.getBlockBlobClient(destinationBlobPath);
+  async uploadFile(localFilePath: string, destinationS3Key: string, contentType?: string): Promise<string> {
     const mimeType = contentType || this.getMimeType(localFilePath);
+    const fileStream = fs.createReadStream(localFilePath);
 
-    console.log(`[Storage] Uploading file: "${localFilePath}" -> "${destinationBlobPath}" (${mimeType})`);
-    await blockBlobClient.uploadFile(localFilePath, {
-      blobHTTPHeaders: {
-        blobContentType: mimeType,
+    console.log(`[Storage] Uploading: "${localFilePath}" -> "s3://${this.bucketName}/${destinationS3Key}" (${mimeType})`);
+
+    const parallelUploads3 = new Upload({
+      client: this.s3Client,
+      params: {
+        Bucket: this.bucketName,
+        Key: destinationS3Key,
+        Body: fileStream,
+        ContentType: mimeType,
       },
     });
 
-    return this.getBlobPublicUrl(destinationBlobPath);
+    await parallelUploads3.done();
+    return this.getMediaPublicUrl(destinationS3Key);
   }
 
   async uploadDirectory(localDirPath: string, remotePrefix: string): Promise<void> {
     const files = this.getAllFiles(localDirPath);
     for (const file of files) {
       const relativePath = path.relative(localDirPath, file).replace(/\\/g, '/');
-      const blobPath = `${remotePrefix}/${relativePath}`.replace(/\/+/g, '/');
-      await this.uploadFile(file, blobPath);
+      const s3Key = `${remotePrefix}/${relativePath}`.replace(/\/+/g, '/').replace(/^\//, '');
+      await this.uploadFile(file, s3Key);
     }
   }
 
-  getBlobPublicUrl(blobPath: string): string {
-    if (config.storage.mediaCdnUrl) {
-      const base = config.storage.mediaCdnUrl.replace(/\/$/, '');
-      return `${base}/${config.storage.containerName}/${blobPath}`;
+  getMediaPublicUrl(s3Key: string): string {
+    const cleanKey = s3Key.replace(/^\//, '');
+    if (config.aws.mediaCdnUrl) {
+      const base = config.aws.mediaCdnUrl.replace(/\/$/, '');
+      return `${base}/${cleanKey}`;
     }
-    if (config.storage.publicBaseUrl) {
-      const base = config.storage.publicBaseUrl.replace(/\/$/, '');
-      return `${base}/${blobPath}`;
-    }
-    if (config.storage.accountName) {
-      return `https://${config.storage.accountName}.blob.core.windows.net/${config.storage.containerName}/${blobPath}`;
-    }
-    return this.containerClient.getBlobClient(blobPath).url;
+    return `https://${this.bucketName}.s3.${config.aws.region}.amazonaws.com/${cleanKey}`;
   }
 
   private getAllFiles(dirPath: string, arrayOfFiles: string[] = []): string[] {

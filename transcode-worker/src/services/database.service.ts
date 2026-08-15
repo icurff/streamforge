@@ -23,20 +23,27 @@ export class DatabaseService {
       await this.connect();
     }
 
+    // Convert string array ["720p", "480p", "360p"] or ["720", "480", "360"] to DynamoDB string set
+    // Spring Boot enum EVideoResolution uses P720, P480, P360
+    const formattedResolutions = resolutions.map((r) => {
+      const num = r.replace(/[^0-9]/g, '');
+      return `P${num}`;
+    });
+
     let updateExpression = 'SET #res = :res, #lastModified = :lastModified';
     const expressionAttributeNames: Record<string, string> = {
       '#res': 'resolutions',
       '#lastModified': 'lastModifiedDate',
     };
     const expressionAttributeValues: Record<string, any> = {
-      ':res': resolutions,
+      ':res': new Set(formattedResolutions),
       ':lastModified': new Date().toISOString(),
     };
 
     if (duration !== undefined && duration > 0) {
       updateExpression += ', #duration = :duration';
       expressionAttributeNames['#duration'] = 'duration';
-      expressionAttributeValues[':duration'] = duration;
+      expressionAttributeValues[':duration'] = Math.round(duration);
     }
 
     const command = new UpdateCommand({
@@ -47,8 +54,12 @@ export class DatabaseService {
       ExpressionAttributeValues: expressionAttributeValues,
     });
 
-    await this.docClient!.send(command);
-    console.log(`[Database] Video record updated in DynamoDB for id=${videoId}`);
+    try {
+      await this.docClient!.send(command);
+      console.log(`[Database] Video record updated in DynamoDB for id=${videoId} with resolutions=[${formattedResolutions.join(', ')}]`);
+    } catch (err: any) {
+      console.error(`[Database Error] Failed to update DynamoDB for videoId=${videoId}:`, err.message);
+    }
   }
 
   async close(): Promise<void> {
