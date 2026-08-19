@@ -37,7 +37,7 @@ public class UploadController {
     @Autowired
     private VideoService videoService;
 
-    @Value("${aws.s3.upload-prefix:raw/}")
+    @Value("${aws.s3.upload-prefix:uploads/}")
     private String uploadPrefix;
 
     @PostMapping("/sessions")
@@ -57,7 +57,7 @@ public class UploadController {
                     ? request.getFileType()
                     : "video/mp4";
 
-            // Format S3 raw key: raw/{username}/{videoId}/{fileName}
+            // Format S3 raw key: uploads/{username}/{videoId}/{fileName}
             String prefix = uploadPrefix.endsWith("/") ? uploadPrefix : uploadPrefix + "/";
             String s3Key = prefix + username + "/" + videoId + "/" + rawFileName;
             String s3OutputPrefix = "outputs/" + username + "/" + videoId + "/";

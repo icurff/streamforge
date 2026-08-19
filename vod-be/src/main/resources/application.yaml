@@ -14,6 +14,10 @@ spring:
 
 aws:
   region: ${AWS_REGION:ap-southeast-1}
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME:streamforge-media-dev-393698973321}
+    upload-prefix: ${AWS_S3_UPLOAD_PREFIX:uploads/}
+    media-public-url: ${AWS_MEDIA_PUBLIC_URL:https://media.icurff.site}
   dynamodb:
     environment: ${ENVIRONMENT:dev}
     prefix: ${DYNAMODB_PREFIX:streamforge}

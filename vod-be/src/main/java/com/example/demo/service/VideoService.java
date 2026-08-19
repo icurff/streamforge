@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -69,7 +68,7 @@ public class VideoService {
         return videoRepository.findByPrivacyOrderByUploadedDateDesc(EVideoPrivacy.PUBLIC, pageable);
     }
 
-    // ---- Upload methods (merged from subServer) ----
+    // ---- Video Creation & Metadata ----
 
     public String addNewVideo(String username, String title, Integer duration) {
         Video vid = new Video();
@@ -79,74 +78,6 @@ public class VideoService {
         vid.setPrivacy(EVideoPrivacy.PUBLIC);
         videoRepository.save(vid);
         return vid.getId();
-    }
-
-    public void saveChunk(String username, String sessionId, int chunkIndex, MultipartFile chunkFile) throws IOException {
-        Path chunkDir = Path.of(storageBaseDir, "uploads", username, sessionId);
-        Files.createDirectories(chunkDir);
-        Path chunkPath = chunkDir.resolve(String.format("chunk_%06d", chunkIndex));
-        Files.copy(chunkFile.getInputStream(), chunkPath, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    public void mergeChunks(String username, String sessionId, String fileName, String fileType,
-                            Long fileSize, Integer fileDuration) throws IOException {
-        // Create new video record
-        String vidId = addNewVideo(username, fileName, fileDuration);
-
-        Path chunkDir = Path.of(storageBaseDir, "uploads", username, sessionId);
-        Path outputVideoPath = Path.of(storageBaseDir, "outputs", username, "videos", vidId, "raw", fileName);
-        Files.createDirectories(outputVideoPath.getParent());
-
-        // Merge chunks into single file
-        try (var out = Files.newOutputStream(outputVideoPath)) {
-            Files.list(chunkDir)
-                    .filter(p -> p.getFileName().toString().startsWith("chunk_"))
-                    .sorted(Comparator.comparing(Path::getFileName))
-                    .forEach(p -> {
-                        try (var in = Files.newInputStream(p)) {
-                            in.transferTo(out);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-        }
-
-        // Cleanup chunks
-        try {
-            Files.walk(chunkDir)
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(p -> {
-                        try { Files.deleteIfExists(p); } catch (IOException ignored) {}
-                    });
-        } catch (IOException ignored) {}
-
-        // Update S3 keys in video record
-        String s3RawKey = "raw/" + username + "/" + vidId + "/" + fileName;
-        String s3OutputPrefix = "outputs/" + username + "/" + vidId + "/";
-        videoRepository.findById(vidId).ifPresent(video -> {
-            video.setS3RawKey(s3RawKey);
-            video.setS3OutputPrefix(s3OutputPrefix);
-            videoRepository.save(video);
-        });
-
-        // Upload merged raw file to Azure Blob Storage under raw/ prefix
-        // Event Grid triggers transcode pipeline automatically on BlobCreated event
-        try {
-            log.info("Uploading raw video to Azure Blob Storage: {}", s3RawKey);
-            s3StorageService.uploadFileFromPath(outputVideoPath, "raw/" + username + "/" + vidId, fileName);
-            log.info("Raw video uploaded successfully to Azure Blob Storage: {}", s3RawKey);
-        } catch (Exception e) {
-            log.error("Failed to upload raw video to Azure Blob Storage: {}", e.getMessage(), e);
-            throw new IOException("Failed to upload raw video to cloud storage", e);
-        } finally {
-            // Cleanup local merged raw file
-            try {
-                Files.deleteIfExists(outputVideoPath);
-                if (outputVideoPath.getParent() != null) {
-                    Files.deleteIfExists(outputVideoPath.getParent());
-                }
-            } catch (IOException ignored) {}
-        }
     }
 
     // ---- Update methods ----
@@ -255,8 +186,10 @@ public class VideoService {
         // Delete from S3
         try {
             s3StorageService.deleteFolder("thumbnails/videos/" + username + "/" + videoId);
+            s3StorageService.deleteFolder("uploads/" + username + "/" + videoId);
             s3StorageService.deleteFolder("raw/" + username + "/" + videoId);
             s3StorageService.deleteFolder("outputs/" + username + "/" + videoId);
+            s3StorageService.deleteFolder("hls/" + username + "/" + videoId);
         } catch (Exception e) {
             log.warn("Failed to delete S3 objects for video {}: {}", videoId, e.getMessage());
         }
